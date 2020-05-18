@@ -10,12 +10,6 @@ for ij in range(8)	:
 			for i in range(0, 1):
 				left = cv2.imread('sawtooth/im' + str(i) + '.ppm', 0)
 				right = cv2.imread('sawtooth/im' + str(i + 1) + '.ppm', 0)
-				'''		
-		for j in range(1, 6):
-			for i in range(1, 5):
-				left	= cv2.imread('ohta/scene1.row' + str(j) + '.col' + str(i) + '.ppm', 0)
-				right	= cv2.imread('ohta/scene1.row' + str(j) + '.col' + str(i + 1) + '.ppm', 0)
-				'''
 				gt		= cv2.imread('sawtooth/disp2.pgm', 0)
 
 				# Initiate orb detector
