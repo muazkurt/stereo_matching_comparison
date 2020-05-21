@@ -1,134 +1,166 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt 
-
-for ij in range(8)	:
-	for ia in range(3, 20):
-		stereo = cv2.StereoBM_create(numDisparities=16 * ij, blockSize=2 * ia + 1)
-		print(2 * ia + 1, ij* 16)
-		for a in range(1):
-			for i in range(0, 1):
-				left = cv2.imread('sawtooth/im' + str(i) + '.ppm', 0)
-				right = cv2.imread('sawtooth/im' + str(i + 1) + '.ppm', 0)
-				gt		= cv2.imread('sawtooth/disp2.pgm', 0)
-
-				# Initiate orb detector
-				orb = cv2.ORB_create()
-				# find the keypoints and descriptors with orb
-				kp1, des1 = orb.detectAndCompute(left,None)
-				kp2, des2 = orb.detectAndCompute(right,None)
-
-				bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-				matches = bf.match(des1, des2)
-				matches = sorted(matches, key=lambda x: x.distance)
-				kp1 = cv2.KeyPoint_convert(kp1)
-				kp2 = cv2.KeyPoint_convert(kp2)
+SWS = 5
+PFS = 5
+PFC = 21
+MDS = -25
+NOD = 16
+TTH = 50
+UR = 10
+SR = 15
+SPWS = 100
 
 
-				arr_temp = []
-				base_arr = []
-				for match in matches:
-					arr_temp.append((kp2[match.trainIdx][0], kp2[match.trainIdx][1]))
-					base_arr.append((kp1[match.queryIdx][0], kp1[match.queryIdx][1]))
-
-				x, y = left.shape
-				output_image = np.zeros((x,y), np.uint8)
-						
-				fTx = 255
-				for temp in range(len(base_arr)):
-					output_image[int(base_arr[temp][1])][int(base_arr[temp][0])] = np.abs(base_arr[temp][0] - arr_temp[temp][0]) * 8 
-				cv2.imshow('orj', output_image)
-				'''
-						print(int(base_arr[i][1]), int(base_arr[i][0]), int(arr_temp[i][1]), int(arr_temp[i][0]), (base_arr[i][0] - arr_temp[i][0]) * 8)
-
-					cv2.imshow("res", output_image)
-
-					match_img = cv2.drawKeypoints(left, kp1, None, color=(0,255,0), flags=0)
-					#match_img = cv2.drawMatches(left, kp1, right, kp2, matches[:600], None)
-					cv2.imshow('Matches1', match_img)
-					match_img = cv2.drawKeypoints(right, kp2, None, color=(0,255,0), flags=0)
-					cv2.imshow('Matches2', match_img)
-
-					im = left - right
-					cv2.imshow("Left-Right", im)
-
-					arr_temp = np.array(arr_temp)
-					base_arr = np.array(base_arr)
-					h, status = cv2.findHomography(arr_temp, base_arr)  
-					if(status[0][0] == 1 and 
-						status[1][0] == 1 and 
-						status[2][0] == 1 and 
-						status[3][0] == 1
-						):
-						oput = cv2.warpPerspective(right, h, (left.shape[1], left.shape[0]))
-						cv2.imshow("output", oput)
-
-					cv2.waitKey()
-					cv2.destroyAllWindows()
+def disparity_orb(left, right):
+	orb_detector = cv2.ORB_create()
+	BF_matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
 
-					cv2.imshow("left", left)
-					cv2.imshow("right", right)
-				'''
-				cv8uc = cv2.normalize(output_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
-				cv2.imshow('normalized', cv8uc)
-
-				disparity = stereo.compute(left, right)
-				'''
-					kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-					disparity = cv2.morphologyEx(disparity, cv2.MORPH_OPEN, kernel)
-					cv2.imshow("disparitys", disparity)  
-				'''
-				local_max = disparity.max()
-				local_min = disparity.min()
-				#disparity_visual = (disparity - local_min) * (1.0 / (local_max - local_min))
-				
-				disparity_visual = cv2.normalize(disparity, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
-				x, y = gt.shape
-				x1, y1 = disparity_visual.shape
-				#gt = cv2.copyMakeBorder(gt,  y1 - y, 0, x1 - x, 0, cv2.BORDER_CONSTANT, value=(255,255,255))		
-				cv2.imshow("disparity", disparity_visual)
-				x, y = gt.shape
-				error = np.zeros((x,y), np.uint8)
-				for i in range(len(error)):
-					for j in range(len(error[i])):
-						#print(error[i][j], ' = ', gt[i][j], ' - ', disparity_visual[i][j])
-						error[i][j] = np.abs(gt[i][j] - disparity[i][j] * 8) % 255
+	kp1, des1 = orb_detector.detectAndCompute(left,None)
+	kp2, des2 = orb_detector.detectAndCompute(right,None)
+	
+	
+	matches = BF_matcher.match(des1, des2)
+	matches = sorted(matches, key=lambda x: x.distance)
+	kp1 = cv2.KeyPoint_convert(kp1)
+	kp2 = cv2.KeyPoint_convert(kp2)
 
 
-				cv2.imshow("error", error)  		
-				'''
-				gap = 6
-
-				for y in range(left.shape[0] - gap, gap, -1):
-					for x in range(gap, left.shape[1] - gap):
-						patch = left[y - gap : y + gap, x - gap: x + gap]
-						result = cv2.matchTemplate(right[y - gap: y + gap,], patch, cv2.TM_CCOEFF_NORMED)
-						(a, b, _, position) = cv2.minMaxLoc(result)
-						#if(b > 0.6):
-						output_image[y][x] += (x - position[0]) * 8
-					cv8uc = cv2.normalize(output_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
-					cv2.imshow('Matches', output_image)
-					cv2.imshow('Matches 2', cv8uc)
-					cv2.waitKey(1)
-				print(i)
-
-				
-				x, y = gt.shape
-				error = np.zeros((x,y), np.uint8)
-				for i in range(len(error)):
-					for j in range(len(error[i])):
-						#print(error[i][j], ' = ', gt[i][j], ' - ', disparity_visual[i][j])
-						error[i][j] = np.abs(gt[i][j] - output_image[i][j]) % 255
-
-
-				cv2.imshow("error", error)  
-				cv2.imshow("gt", gt)
-				
-				
-				'''
-				cv2.waitKey(100)
+	matching_points_left	= []
+	matching_points_right	= []
+	for match in matches[:20]:
+		matching_points_left.append((kp2[match.trainIdx][0], kp2[match.trainIdx][1]))
+		matching_points_right.append((kp1[match.queryIdx][0], kp1[match.queryIdx][1]))
+	'''
+		matching_points_left = np.array(matching_points_left)
+		matching_points_right = np.array(matching_points_right)
+		h, status = cv2.findHomography(matching_points_left, matching_points_right)  
+		if(status[0][0] == 1 and 
+			status[1][0] == 1 and 
+			status[2][0] == 1 and 
+			status[3][0] == 1
+			):
+			oput = cv2.warpPerspective(right, h, (left.shape[1], left.shape[0]))
+			cv2.imshow("output", oput)
+		cv2.imshow("L", left)
+		cv2.imshow("r", right)
+	'''
+	output_image_l = np.zeros(left.shape, np.uint8)
+	output_image_r = np.zeros(left.shape, np.uint8)
+	for temp in range(len(matching_points_right)):
+		output_image_l[int(matching_points_left[temp][1])][int(matching_points_left[temp][0])] = np.abs(matching_points_right[temp][0] - matching_points_left[temp][0]) 
+		output_image_r[int(matching_points_right[temp][1])][int(matching_points_right[temp][0])] = np.abs(matching_points_right[temp][0] - matching_points_left[temp][0]) 
+	output_image_l = cv2.normalize(output_image_l, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+	output_image_r = cv2.normalize(output_image_r, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+	
+	return output_image_l, output_image_r
 
 
+def block_based(left,right):
+	min_disp = -5
+	win_size = 3
+	max_disp = 63
+	num_disp = max_disp - min_disp
+	stereo = cv2.StereoSGBM_create(	minDisparity=min_disp, 
+									numDisparities=16, 
+									blockSize = 11,
+									P1=8 * 3 * win_size ** 2, 
+									P2=32 * 3 * win_size ** 2, 
+									disp12MaxDiff=1, 
+									uniquenessRatio=5, 
+									speckleWindowSize=5,
+									speckleRange=5
+									
+									)
+	disparity = stereo.compute(left, right).astype(np.float32)
+	'''
+	disparity *= 8
+	gap = 7
+	
+	disparity = np.zeros(left.shape, np.uint8)
+	for y in range(left.shape[0] - gap, gap, -1):
+		for x in range(gap, left.shape[1] - gap):
+			patch = left[y - gap : y + gap, x - gap: x + gap]
+			result = cv2.matchTemplate(right[y - gap: y + gap, ], patch, cv2.TM_CCOEFF_NORMED)
+			(_, b, _, position) = cv2.minMaxLoc(result)
+			if(b > 0.3):
+				disparity[y][x] += (x - position[0]) * 8
+		cv2.imshow('Matches', disparity)
+		cv2.waitKey(1)
+	'''
+	'''
 
-				
+		print(i)
+		x, y = gt.shape
+		error = np.zeros((x,y), np.uint8)
+		for i in range(len(error)):
+			for j in range(len(error[i])):
+				#print(error[i][j], ' = ', gt[i][j], ' - ', disparity_visual[i][j])
+				error[i][j] = np.abs(gt[i][j] - output_image[i][j]) % 255
+
+
+		cv2.imshow("error", error)  
+		cv2.imshow("gt", gt)
+	
+	local_max = disparity.max()
+	local_min = disparity.min()
+	#disparity_visual = (disparity - local_min) * (1.0 / (local_max - local_min))
+
+	'''
+
+	return disparity
+
+
+def main():
+	directories = ["barn1/", "barn2/", "bull/", "poster/", "sawtooth/", "venus/"]
+	for dir_name in directories:
+		gt		= cv2.imread(dir_name + 'disp2.pgm', 0).astype(np.float32)
+		gt2		= cv2.imread(dir_name + 'disp6.pgm', 0)
+		cv2.imshow("gt1", gt)
+		cv2.imshow("gt2", gt2)
+		print(dir_name)
+		print(gt.min(), gt.max())
+		ret = np.zeros(gt.shape)
+		for i in range(0, 1):
+			left = cv2.imread(dir_name + 'im' + str(i) + '.ppm', 0)
+			right = cv2.imread(dir_name + 'im' + str(i + 1) + '.ppm', 0)
+			oput = disparity_orb(left, right)
+			ret = block_based(left, right)
+			error = ret - gt
+			err = 0
+			for i in range (ret.shape[0]):
+				for j in range (ret.shape[1]):
+					err += (ret[i][j]- gt[i][j]) ** 2
+					error[i][j] = ret[i][j]- gt[i][j]
+			print(err / (ret.shape[0] * ret.shape[1]))
+			'''
+			error = np.zeros(gt.shape, np.uint8)
+			'''
+
+			error = cv2.normalize(error, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+			cv2.imshow("error1", error)  
+			
+			print(ret.min(), ret.max())
+			ret = cv2.normalize(ret, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+			print(ret.min(), ret.max())
+			cv2.imshow("avg_disp", ret)  
+			
+			error = np.abs(ret - gt)
+			cv2.imshow("error2", error)  
+			'''
+			for i in range (ret.shape[0]):
+				for j in range (ret.shape[1]):
+					error[i][j] = np.abs(ret[i][j] - gt[i][j])
+			'''
+			error = cv2.normalize(error, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+			cv2.imshow("error3", error)  
+			
+
+			cv2.waitKey()
+			continue
+
+
+if __name__ == "__main__":
+	main()
+	cv2.destroyAllWindows()
